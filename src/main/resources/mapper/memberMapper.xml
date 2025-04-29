@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.oauth.mapper.MemberMapper">
+    <insert id="insert" parameterType="OauthMemberVO">
+        INSERT INTO TBL_OAUTH_MEMBER (ID, MEMBER_EMAIL, MEMBER_PASSWORD, MEMBER_PICTURE, MEMBER_NAME, MEMBER_NICKNAME, MEMBER_PROVIDER)
+        VALUES (
+        SEQ_OAUTH_MEMBER.NEXTVAL,
+        #{memberEmail},
+        <if test="memberPassword != null">#{memberPassword}</if>
+        <if test="memberPassword == null">NULL</if>,
+        <if test="memberPicture != null">#{memberPicture}</if>
+        <if test="memberPicture == null">DEFAULT</if>,
+        #{memberName},
+        <if test="memberNickName != null">#{memberNickName}</if>
+        <if test="memberNickName == null">DEFAULT</if>,
+        <if test="memberProvider != null">#{memberProvider}</if>
+        <if test="memberProvider == null">DEFAULT</if>
+        )
+    </insert>
+
+    <select id="select" parameterType="Long" resultType="OauthMemberVO">
+        SELECT ID, MEMBER_EMAIL, MEMBER_PASSWORD, MEMBER_PICTURE, MEMBER_NAME, MEMBER_NICKNAME, MEMBER_PROVIDER
+        FROM TBL_OAUTH_MEMBER
+        WHERE ID = #{id}
+    </select>
+
+    <select id="selectByEmail" parameterType="String" resultType="Long">
+        SELECT ID
+        FROM TBL_OAUTH_MEMBER
+        WHERE MEMBER_EMAIL = #{memberEmail}
+    </select>
+
+    <select id="selectAll" resultType="OauthMemberVO">
+        SELECT ID, MEMBER_EMAIL, MEMBER_PASSWORD, MEMBER_PICTURE, MEMBER_NAME, MEMBER_NICKNAME, MEMBER_PROVIDER
+        FROM TBL_OAUTH_MEMBER
+    </select>
+
+    <update id="update" parameterType="OauthMemberVO">
+        UPDATE TBL_OAUTH_MEMBER
+        SET MEMBER_EMAIL = #{memberEmail}, MEMBER_PASSWORD = #{memberPassword}, MEMBER_PICTURE = #{memberPicture}, MEMBER_NAME = #{memberName},
+            MEMBER_NICKNAME = #{memberNickName}, MEMBER_PROVIDER = #{memberProvider}
+        WHERE ID = #{id}
+    </update>
+
+    <delete id="delete" parameterType="Long">
+        DELETE FROM TBL_OAUTH_MEMBER
+        WHERE ID = #{id}
+    </delete>
+
+</mapper>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
