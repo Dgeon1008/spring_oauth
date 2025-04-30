@@ -37,7 +37,7 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Override
-    public void update(OauthMemberVO oauthMemberVO) {
+    public void modify(OauthMemberVO oauthMemberVO) {
         memberDAO.update(oauthMemberVO);
     }
 

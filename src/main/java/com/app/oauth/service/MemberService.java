@@ -20,7 +20,7 @@ public interface MemberService {
     public void register(OauthMemberVO oauthMemberVO);
 
 //    회원 수정
-    public void update(OauthMemberVO oauthMemberVO);
+    public void modify(OauthMemberVO oauthMemberVO);
 
 //    회원 탈퇴
     public void delete(Long id);

@@ -1,6 +1,9 @@
 package com.app.oauth.config;
 
+import com.app.oauth.domain.OauthMemberVO;
+import com.app.oauth.service.MemberService;
 import com.app.oauth.util.JwtTokenUtil;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -21,10 +24,11 @@ import java.util.Map;
 @Slf4j
 public class SecurityConfig {
 
+    private final MemberService memberService;
     private final JwtTokenUtil jwtTokenUtil;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, MemberService memberService) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource())) // CORS 설정 추가
                 .csrf(csrf -> csrf.disable()) // CSRF 비활성화
@@ -32,30 +36,96 @@ public class SecurityConfig {
                         .anyRequest().permitAll() // 모든 경로 허용
                 )
                 .oauth2Login(oauth -> oauth
-                        .loginPage("/oauth2/authorization/google")
-                        .successHandler((request, response, authentication) -> {
+//                                .loginPage("/oauth2/authorization/google")
+                                .successHandler((request, response, authentication) -> {
 //                            log.info("{}", authentication);
-                            if(authentication instanceof OAuth2AuthenticationToken) {
-                                OAuth2AuthenticationToken authToken = (OAuth2AuthenticationToken) authentication;
-                                OAuth2User user = authToken.getPrincipal();
-                                Map<String, Object> attributes = user.getAttributes();
-                                                                
-//                                log.info("oauth2AuthenticationToken : {}", authToken);
-                                
-//                                Oauth2 제공자의 정보(email, name, provider) 어디서 회원가입을 했는지 정보를 가져옴
-                                String provider = authToken.getAuthorizedClientRegistrationId(); // ex) "google", "naver", "kakao"
-                                String email = (String)attributes.get("email");
-                                String name = (String)attributes.get("name");
+                                    if(authentication instanceof OAuth2AuthenticationToken){
+                                        OAuth2AuthenticationToken authToken = (OAuth2AuthenticationToken) authentication;
+                                        OAuth2User user = authToken.getPrincipal();
+                                        Map<String, Object> attributes = user.getAttributes();
 
-                                Map<String, Object> responcseMap = new HashMap<>();
-                                Map<String, Object> claims = new HashMap<>();
+//                                log.info("oauth2AuthenticationToken {}", authToken);
 
-//                                회원을 확인한다.
-//                                1) 이미 회원인지
-//                                2) 최초 구글, 카카오, 네이버, 소션 로그인을 한 사람인지
-//                                  - 1) 바로 회원가입 후 로그인
-//                                  - 2) 리다이렉트 -> 성공 페이지 -> 회원 가입 -> 백엔드로 회원가입 요청
+//                                Oauth2 제공자의 정보(Email, name, provider)
+                                        String provider = authToken.getAuthorizedClientRegistrationId(); // ex) "google", "naver", "kakao"
+                                        String email = "";
+                                        String name = "";
+                                        if(provider.equals("google")){
+                                            email = (String)attributes.get("email");
+                                            name = (String)attributes.get("name");
+                                        }else if(provider.equals("kakao")){
+                                            email = ((Map<String, Object>)attributes.get("kakao_account")).get("email").toString();
+                                            name = ((Map<String, Object>)attributes.get("properties")).get("nickname").toString();
+                                        }else if(provider.equals("naver")){
+                                            email = ((Map<String, Object>)attributes.get("response")).get("email").toString();
+                                            name = ((Map<String, Object>)attributes.get("response")).get("name").toString();
+                                        }
+
+                                        log.info("getAttribute : {}", attributes);
+//                                        log.info("getAttribute : {}", attributes.get("profile"));
+                                        name = (String)attributes.get("name");
+
+                                        Map<String, Object> responseMap = new HashMap<>();
+                                        Map<String, Object> claims = new HashMap<>();
+
+                                        claims.put("email", email);
+                                        claims.put("name", name);
+
+//                                추가 정보를 받기 위해 provider와 email을 화면으로 넘긴다.
+                                        Long memberId = memberService.getMemberIdByMemberEmail(email);
+//                                        값이 있다면 프로바이더 없다면 null
+                                        String foundMemberProvider = memberService.getMemberById(memberId).map(OauthMemberVO::getMemberProvider).orElse(null);
+                                        String redirectUrl = "";
+//                                        기존 회원의 로그인
+                                        if(memberId != null && foundMemberProvider.equals(provider)){
+                                            String jwtToken = jwtTokenUtil.generateToken(claims);
+                                            redirectUrl = "http://localhost:3000/?jwtToken=" + jwtToken;
+
+//                                            기존 회원이라면 통합
+                                        } else if (memberId != null && !foundMemberProvider.equals(provider)) {
+//                                            기존회원이 타사 로그인
+                                            if(foundMemberProvider.equals("자사로그인")){
+                                                String jwtToken = jwtTokenUtil.generateToken(claims);
+                                                memberService.getMemberById(memberId).ifPresent(member -> {
+                                                    OauthMemberVO oauthMemberVO = new OauthMemberVO();
+                                                    oauthMemberVO.setId(member.getId());
+                                                    oauthMemberVO.setMemberEmail(member.getMemberEmail());
+                                                    oauthMemberVO.setMemberName(member.getMemberName());
+                                                    oauthMemberVO.setMemberPassword(member.getMemberPassword());
+                                                    oauthMemberVO.setMemberPicture(member.getMemberPicture());
+                                                    oauthMemberVO.setMemberNickName(member.getMemberNickName());
+//                                                    소셜로그인에서 넘어온 provide로 변경
+                                                    oauthMemberVO.setMemberProvider(provider);
+                                                    memberService.modify(oauthMemberVO);
+                                                });
+                                                redirectUrl = "http://localhost:3000/?jwtToken=" + jwtToken;
+//                                                그냥 바로 통합시키는 방법
+//                                                1) 회원 조회
+//                                                2) 업데이트 쿼리 실행
+//                                                3) 토큰 발급
+//                                                4) 로그인 처리
+                                            }else{
+//                                                타사의 소셜로그인
+                                                redirectUrl = "http://localhost:3000/sign-in?provider=" + foundMemberProvider + "&login=false";
+                                            }
+//                                            아니라면 신규 가입
+                                        } else{
+                                            redirectUrl = "http://localhost:3000/sign-up?provider=" + provider + "&email=" + email;
+                                        }
+
+                                        response.sendRedirect(redirectUrl);
+                                    }
+                                })
+                )
+                .logout(logout -> logout
+                        .logoutUrl("/logout")
+                        .logoutSuccessUrl("http://localhost:3000/sign-in")
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            HttpSession session = request.getSession(false); // false : 세션이 있으면 가져와라
+                            if(session != null){
+                                session.invalidate();
                             }
+                            response.sendRedirect("http://localhost:3000/sign-in");
                         })
                 );
 
